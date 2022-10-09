@@ -1,3 +1,4 @@
+from agents.test_agent import TestAgent
 from agents.unoagent import UnoAgent
 from unogame import UnoGame
 from unotypes import *
@@ -59,7 +60,7 @@ def main():
     from agents.randomagent import RandomAgent
     from agents.textagent import TextAgent
 
-    agents = [TextAgent("Player"), RandomAgent("RandomAgent 1"), RandomAgent("RandomAgent 2")]
+    agents = [TextAgent("Player"), RandomAgent("RandomAgent 1"), RandomAgent("RandomAgent 2"), TestAgent("Fafferty")]
     env = UnoEnvironment(agents=agents, winning_score=500)
     for i, state in enumerate(env):
         if state.game_won:
