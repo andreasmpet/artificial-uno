@@ -60,12 +60,32 @@ def main():
     from agents.randomagent import RandomAgent
     from agents.textagent import TextAgent
 
-    agents = [TextAgent("Player"), RandomAgent("RandomAgent 1"), RandomAgent("RandomAgent 2"), TestAgent("Fafferty")]
-    env = UnoEnvironment(agents=agents, winning_score=500)
-    for i, state in enumerate(env):
-        if state.game_won:
-            print(state.scores)
-            env.print_winner()
+    agents = [
+        # TextAgent("Player"),
+        RandomAgent("RandomAgent 1"),
+        RandomAgent("RandomAgent 2"),
+        RandomAgent("RandomAgent 3"),
+        TestAgent("AI-Dreas")]
+    games_to_play = 50
+    games_won = {}
+    for idx, _ in enumerate(range(0, games_to_play)):
+        env = UnoEnvironment(agents=agents, winning_score=500)
+        for i, state in enumerate(env):
+            if state.game_won:
+                winner_idx = next(i for (i, score) in
+                                  enumerate(env.uno_game.scores)
+                                  if score >= env.uno_game.winning_score)
+                prev_won_games = games_won.get(winner_idx) or 0
+                games_won[winner_idx] = prev_won_games + 1
+                print(state.scores)
+                env.print_winner()
+                print("finished " + str(idx + 1) + "/" + str(games_to_play) + "games")
+
+    print("WIN PERCENTAGES")
+    for idx, agent in enumerate(agents):
+        games_won_by_agent = games_won.get(idx) or 0
+        win_percentage = (games_won_by_agent / games_to_play) * 100
+        print(agent.alias + ":" + str(win_percentage) + "%")
 
 
 if __name__ == '__main__':
