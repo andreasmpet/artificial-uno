@@ -11,9 +11,10 @@ For Knowit Objectnet's internal seminar in Rome. The goal of the competition is 
 Uses the standard UNO-rules, see https://en.wikipedia.org/wiki/Uno_(card_game). A few details about the official rules that might be surprising to the average UNO-player:
 
 - The aim of the game is to be the first player to score 500 points.
-- Points are achieved by being the first to play all of one's own cards. Points are rewarded based on the amount of cards still held by the other players.
-- "Progressive Uno"It is illegal to stack "draw two" or "draw four" cards to defend against your opponent's "draw two" or "draw four" cards.
-- A player may play a "draw four" card only if that player has no cards matching the current color. It is however allowed to lie and play the "draw four" anyway, but the next player may choose to challenge its use. The player who used the "draw four" must privately show their hand to the challenging player in order to demonstrate that they had no prior matching colored cards. If the challenge is successful, then the challenged player must draw four cards instead and play continues with the challenger. Otherwise, the challenger must draw six cards – the four cards they were already required to draw plus two more cards – and lose their turn.
+- Points are achieved by being the first to play all of one's own cards. Points are rewarded based on the cards held by the other players. Number cards count their face value, all action cards count 20, and Wild and Wild Draw Four cards count 50
+- the amount of cards still held by the other players.
+- "Progressive/Stacking UNO" (see https://en.wikipedia.org/wiki/Uno_(card_game)#House_rules) is not a part of standard UNO.
+- A player may play a Wild Draw Four card only if that player has no cards matching the current color. It is however allowed to lie and play it anyway, but the next player may choose to challenge its use. The player who played the Wild Draw Four must privately show their hand to the challenging player in order to demonstrate that they had no prior matching colored cards. If the challenge is successful, then the challenged player must draw four cards instead and play continues with the challenger. Otherwise, the challenger must draw six cards – the four cards they were already required to draw plus two more cards – and lose their turn.
 
 ### How to participate
 

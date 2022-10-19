@@ -105,7 +105,9 @@ class Card:
                 self.sign == card.sign)
 
     def __eq__(self, other):
-        if self.is_wild:
+        if other is None:
+            return False
+        elif self.is_wild:
             return self.sign == other.sign
         else:
             return self.sign == other.sign and self.color == other.color
@@ -247,6 +249,8 @@ class Observation:
     top_card: Card
     hand: Hand
     cards_left: list[int]
+    draw_pile_size: int
+    discard_pile_size: int
     current_agent_idx: int
     direction: Literal[-1, 1]
     previously_drawn_card: Card | None
@@ -348,6 +352,8 @@ class GameState:
             agent_idx=agent_idx,
             hand=self.hands[agent_idx],
             cards_left=[len(hand) for hand in self.hands],
+            draw_pile_size=len(self.draw_pile),
+            discard_pile_size=len(self.discard_pile),
             top_card=self.discard_pile.top(),
             current_agent_idx=self.current_agent_idx,
             direction=self.direction,
