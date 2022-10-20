@@ -43,9 +43,7 @@ class TestAgent(UnoAgent):
     prev_observation = None
     discard_pile = None
     played_cards_color_histogram = None
-    played_cards_signs_histogram = None
-    color_drawn_probability = None
-    sign_drawn_probability = None
+    played_cards_sign_histogram = None
     agent_hand_color_probabilities = None
     agent_hand_sign_probabilities = None
 
@@ -92,13 +90,21 @@ class TestAgent(UnoAgent):
         next_agent_index = self.get_next_agent_idx(current_observation)
         prev_agent_index = self.get_prev_agent_idx(current_observation)
 
+        hand_color_histogram = TestAgent.calc_color_histogram(current_observation.hand.cards)
+        hand_sign_histogram = TestAgent.calc_sign_histogram(current_observation.hand.cards)
+
         if current_observation.can_challenge_draw_four:
-            if self.calc_should_challenge_draw_four(current_observation, next_agent_index, prev_agent_index):
+            if self.calc_should_challenge_draw_four(current_observation, next_agent_index, prev_agent_index,
+                                                    hand_color_histogram):
                 return ChallengeDrawFour()
             else:
                 return AcceptDrawFour()
 
-        ranked_actions = self.determine_optimal_card_plays(current_observation, next_agent_index, prev_agent_index)
+        ranked_actions = self.determine_optimal_card_plays(current_observation,
+                                                           next_agent_index,
+                                                           prev_agent_index,
+                                                           hand_color_histogram,
+                                                           hand_sign_histogram)
 
         if len(ranked_actions) > 0:
             # If we have more than one optimal play, pick one at random
@@ -110,17 +116,24 @@ class TestAgent(UnoAgent):
         # random action so we don't stall the game.
         return random.sample(action_space, 1)[0]
 
-    def determine_optimal_card_plays(self, current_observation, next_agent_index, prev_agent_index):
+    def determine_optimal_card_plays(self, current_observation,
+                                     next_agent_index,
+                                     prev_agent_index,
+                                     hand_color_histogram,
+                                     hand_sign_histogram):
         next_agent_remaining_cards = current_observation.cards_left[next_agent_index]
         prev_agent_remaining_cards = current_observation.cards_left[prev_agent_index]
+
         play_card_actions = [action for action in current_observation.action_space() if isinstance(action, PlayCard)]
         card_scores = {}
 
         # TODO: Make color priority rating have more or less weight on decision making
         remaining_card_count = len(current_observation.hand)
         is_in_low_card_mode = remaining_card_count <= 3
-        color_priority_ratings = self.calc_color_priority_rating(current_observation, is_in_low_card_mode)
-        zero_value = 20  # Zeroes get extra priority to be played since they rarely can be
+        color_priority_ratings = \
+            self.calc_color_priority_rating(current_observation, is_in_low_card_mode, hand_color_histogram)
+        sign_probabilities = self.agent_hand_sign_probabilities[next_agent_index]
+        zero_value = 50  # Zeroes get extra priority to be played since they are hard to play
         bin_size = 2
 
         aggressive_mode_threshold = 3
@@ -141,19 +154,30 @@ class TestAgent(UnoAgent):
 
             if card.is_number:
                 card_score = zero_value if card.sign is Sign.ZERO else card.sign.score
+                # De-prioritize playing numbers that are more likely for the next player to have
+                card_score *= (1 - sign_probabilities[card.sign])
             else:
                 match card.sign:
-                    case Sign.DRAW_FOUR, Sign.DRAW_TWO:
+                    case Sign.DRAW_FOUR | Sign.DRAW_TWO:
+                        if card.sign == Sign.DRAW_FOUR:
+                            is_allowed_to_play_draw_four = \
+                                self.calc_can_legally_play_draw_four(current_observation, hand_color_histogram)
+                            if not is_allowed_to_play_draw_four:
+                                should_bluff = False
+                                if not should_bluff:
+                                    card_score *= 0
                         if not is_in_aggressive_mode:
                             # Modify desire to play draw cards even further when not in aggressive mode
                             card_score *= desire_to_play_draw_cards_in_passive_mode
                         if is_in_panic_mode:
                             card_score *= 10
                     case Sign.SKIP:
-                        # TODO: Could potentially take into account if the player after THAT has only one card too, but
+                        # TODO: Could potentially take into account if
+                        #  the player after the next has only one card too, but might be overkill
                         if next_agent_remaining_cards == 1:
                             card_score *= 5
                     case Sign.REVERSE:
+                        prev_player_had_to_draw = self.calc_prev_player_had_to_draw(current_observation, prev_agent_index)
                         if next_agent_remaining_cards == 1:
                             card_score *= 5
                         if prev_agent_remaining_cards == 1:
@@ -175,7 +199,6 @@ class TestAgent(UnoAgent):
 
         sorted_scores = sorted(binned_cards.keys(), reverse=True)
         best_bin = binned_cards[sorted_scores[0]]
-        # print(binned_cards)
 
         return best_bin
 
@@ -189,8 +212,8 @@ class TestAgent(UnoAgent):
         # TODO: Take into account that we get information from when players have to
         #  draw their previous round.
         for observation in new_observations_since_last_turn:
-            self.played_cards_color_histogram, self.played_cards_signs_histogram = \
-                self.calc_histograms(self.discard_pile)
+            self.played_cards_color_histogram = self.calc_color_histogram(self.discard_pile)
+            self.played_cards_sign_histogram = self.calc_sign_histogram(self.discard_pile)
 
             did_reshuffle = observation.draw_pile_size > self.prev_observation.draw_pile_size \
                 if self.prev_observation is not None else False
@@ -202,15 +225,11 @@ class TestAgent(UnoAgent):
 
             if self.prev_observation is not None:
                 prev_agent_index = self.get_prev_agent_idx(observation)
-                prev_agent_cards_delta = observation.cards_left[prev_agent_index] - self.prev_observation.cards_left[
+                prev_agent_cards_delta = observation.cards_left[observation] - self.prev_observation.cards_left[
                     prev_agent_index]
-                # print("prev_agent_cards_delta -> " + str(prev_agent_cards_delta))
-                did_draw_card = prev_agent_cards_delta > 0
-                is_top_card_draw_2_or_4 = \
-                    observation.top_card.sign is Sign.DRAW_TWO or observation.top_card.sign is Sign.DRAW_FOUR
+                print(prev_agent_cards_delta)
 
-                did_draw_card_because_hand_was_unplayable = did_draw_card and not is_top_card_draw_2_or_4
-                did_play_card = prev_agent_cards_delta < 0
+                did_draw_card_because_hand_was_unplayable = prev_agent_cards_delta == 1
                 self.update_hand_probabilities(observation, did_draw_card_because_hand_was_unplayable)
 
             self.prev_observation = observation
@@ -238,15 +257,31 @@ class TestAgent(UnoAgent):
         self.reset_round()
         self.update_hand_probabilities(current_observation, False)
 
+    # @staticmethod
+    # def calc_histograms(cards: list[Card]):
+    #     color_count = deepcopy(EMPTY_COLOR_HISTOGRAM)
+    #     sign_count = deepcopy(EMPTY_SIGN_HISTOGRAM)
+    #     for card in cards:
+    #         color_count[card.color] = color_count[card.color] + 1
+    #         sign_count[card.sign] = sign_count[card.sign] + 1
+    #
+    #     return color_count, sign_count
+
     @staticmethod
-    def calc_histograms(cards: list[Card]):
+    def calc_color_histogram(cards: list[Card]):
         color_count = deepcopy(EMPTY_COLOR_HISTOGRAM)
-        sign_count = deepcopy(EMPTY_SIGN_HISTOGRAM)
         for card in cards:
             color_count[card.color] = color_count[card.color] + 1
+
+        return color_count
+
+    @staticmethod
+    def calc_sign_histogram(cards: list[Card]):
+        sign_count = deepcopy(EMPTY_SIGN_HISTOGRAM)
+        for card in cards:
             sign_count[card.sign] = sign_count[card.sign] + 1
 
-        return color_count, sign_count
+        return sign_count
 
     def update_hand_probabilities(self,
                                   observation: Observation,
@@ -260,7 +295,7 @@ class TestAgent(UnoAgent):
         agent_hand_sizes = observation.cards_left
         for idx, hand_size in enumerate(agent_hand_sizes):
             if idx != observation.agent_idx:
-                new_agent_color_probabilities, new_agent_sign_probabilities = self.calc_hand_probabilities(
+                new_agent_color_probabilities, new_agent_sign_probabilities = self.calc_opponent_hand_probabilities(
                     known_cards, hand_size)
                 self.agent_hand_color_probabilities[idx] = \
                     self.avg_probabilities(new_agent_color_probabilities,
@@ -307,12 +342,13 @@ class TestAgent(UnoAgent):
         return avg
 
     @staticmethod
-    def calc_hand_probabilities(known_cards: list[Card], cards_in_hand_count: int):
+    def calc_opponent_hand_probabilities(known_cards: list[Card], cards_in_hand_count: int):
         # unknown_cards_count = UNO_CARD_COUNT - len(current_observation.hand)
         # TODO: Take into account cards from enemy players
         #  we actually know and leave them out of the probability equation
         unknown_cards_count = UNO_CARD_COUNT - len(known_cards)
-        color_hist, sign_hist = TestAgent.calc_histograms(known_cards)
+        color_hist = TestAgent.calc_color_histogram(known_cards)
+        sign_hist = TestAgent.calc_sign_histogram(known_cards)
         remaining_colors_hist = {color: MAX_COLOR_HISTOGRAM[color] - count for (color, count) in color_hist.items()}
         remaining_signs_hist = {sign: MAX_SIGN_HISTOGRAM[sign] - count for (sign, count) in sign_hist.items()}
         color_probability = {color: remaining_colors_hist[color] / unknown_cards_count for
@@ -341,8 +377,13 @@ class TestAgent(UnoAgent):
 
         return col_probs, sign_probs
 
-    def calc_should_challenge_draw_four(self, current_observation, next_agent_index, prev_agent_index):
-        return False
+    def calc_should_challenge_draw_four(self, current_observation, next_agent_index, prev_agent_index, color_hist):
+        color_probabilities = self.agent_hand_color_probabilities[prev_agent_index]
+        prob_that_prev_agent_has_matching_color = color_probabilities[current_observation.top_card.color]
+        should_challenge = prob_that_prev_agent_has_matching_color > 0.95
+        if should_challenge:
+            print("challenging draw four")
+        return should_challenge
 
     @staticmethod
     def get_next_agent_idx(observation):
@@ -354,32 +395,31 @@ class TestAgent(UnoAgent):
         return (observation.current_agent_idx - observation.direction) % len(
             observation.cards_left)
 
-    def calc_color_priority_rating(self, observation, is_in_low_card_mode):
+    def calc_color_priority_rating(self, observation, is_in_low_card_mode, hand_color_histogram):
         cards_remaining = len(observation.hand)
 
-        color_hist, _ = self.calc_histograms(observation.hand)
         # When we're down to 3 cards, we try to make sure we have two cards of the same color
         get_rid_of_single_colors = is_in_low_card_mode
 
         priorities_based_on_own_cards = {}
-        has_single_card_of_color = 1 in color_hist.values()
-        for color in color_hist.keys():
-            cards_in_color_count = color_hist[color]
+        has_single_card_of_color = 1 in hand_color_histogram.values()
+        for color in hand_color_histogram.keys():
+            cards_in_color_count = hand_color_histogram[color]
             priority = cards_in_color_count / cards_remaining
             # If we at least have one color with just 1 card left, and we're in "low cards mode"
             # we just give priority 0 to all other colors so that they are not even considered.
             if get_rid_of_single_colors and has_single_card_of_color:
                 priority = 1 if cards_in_color_count == 1 else 0
-                print("ff")
 
             priorities_based_on_own_cards[color] = priority
 
         priorities_after_modified_by_probabilities = {}
-        probabilities_for_next_agent = self.agent_hand_color_probabilities[self.get_next_agent_idx(observation)]
+        next_agent_idx = self.get_next_agent_idx(observation)
+        color_probabilities_for_next_agent = self.agent_hand_color_probabilities[next_agent_idx]
         # Prioritize colors that the next player are likely to be low on
         for color in priorities_based_on_own_cards.keys():
             priorities_after_modified_by_probabilities[color] = priorities_based_on_own_cards[color] * (
-                    1 - probabilities_for_next_agent[color])
+                    1 - color_probabilities_for_next_agent[color])
 
         return priorities_after_modified_by_probabilities
 
@@ -388,11 +428,22 @@ class TestAgent(UnoAgent):
         self.prev_observation = None
         self.discard_pile = []
         self.played_cards_color_histogram = deepcopy(EMPTY_COLOR_HISTOGRAM)
-        self.played_cards_signs_histogram = deepcopy(EMPTY_SIGN_HISTOGRAM)
-        self.color_drawn_probability = deepcopy(EMPTY_COLOR_HISTOGRAM)
-        self.sign_drawn_probability = deepcopy(EMPTY_SIGN_HISTOGRAM)
+        self.played_cards_sign_histogram = deepcopy(EMPTY_SIGN_HISTOGRAM)
         self.agent_hand_color_probabilities = {}
         self.agent_hand_sign_probabilities = {}
 
     def handle_deck_has_been_reshuffled(self):
         self.discard_pile.clear()
+
+    @staticmethod
+    def calc_can_legally_play_draw_four(current_observation, hand_color_histogram):
+        has_cards_in_same_color_as_top_card = hand_color_histogram[current_observation.top_card.color]
+        return has_cards_in_same_color_as_top_card == 0
+
+    def calc_prev_player_had_to_draw(self, current_observation, prev_agent_index):
+        opponent_hand_color_probabilities = self.agent_hand_color_probabilities[prev_agent_index]
+        opponent_hand_sign_probabilities = self.agent_hand_sign_probabilities[prev_agent_index]
+        color_prob = opponent_hand_color_probabilities[current_observation.top_card.color] or 0
+        sign_prob = opponent_hand_sign_probabilities[current_observation.top_card.sign] or 0
+        if color_prob == 0 or sign_prob == 0:
+            return True
