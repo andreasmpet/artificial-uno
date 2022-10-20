@@ -225,7 +225,7 @@ class TestAgent(UnoAgent):
 
             if self.prev_observation is not None:
                 prev_agent_index = self.get_prev_agent_idx(observation)
-                prev_agent_cards_delta = observation.cards_left[observation] - self.prev_observation.cards_left[
+                prev_agent_cards_delta = observation.cards_left[prev_agent_index] - self.prev_observation.cards_left[
                     prev_agent_index]
                 print(prev_agent_cards_delta)
 
