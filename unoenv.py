@@ -1,4 +1,4 @@
-from agents.test_agent import TestAgent
+from agents.ai_dreas_agent import AIDreasAgent
 from agents.unoagent import UnoAgent
 from unogame import UnoGame
 from unotypes import *
@@ -65,11 +65,11 @@ def main():
         RandomAgent("RandomAgent 1"),
         RandomAgent("RandomAgent 2"),
         RandomAgent("RandomAgent 3"),
-        TestAgent("AI-Dreas")]
+        AIDreasAgent("AI-Dreas")]
     games_to_play = 50
     games_won = {}
     for idx, _ in enumerate(range(0, games_to_play)):
-        env = UnoEnvironment(agents=agents, winning_score=500)
+        env = UnoEnvironment(agents=agents, winning_score=2000)
         for i, state in enumerate(env):
             if state.game_won:
                 winner_idx = next(i for (i, score) in
