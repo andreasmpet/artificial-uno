@@ -245,8 +245,8 @@ class AIDreasAgent(UnoAgent):
                 self.update_hand_probabilities(observation, prev_agent_did_draw_card_because_hand_was_unplayable)
 
             self.prev_observation = observation
-            if len(self.discard_pile) != observation.discard_pile_size:
-                print("Out o sync. No idea why")
+            # if len(self.discard_pile) != observation.discard_pile_size:
+            #     print("Out o sync. No idea why")
 
     def calc_remaining_cards(self, current_observation: Observation):
         cards_in_player_hands = sum(current_observation.cards_left)
@@ -373,8 +373,6 @@ class AIDreasAgent(UnoAgent):
         color_probabilities = self.agent_hand_color_probabilities[prev_agent_index]
         prob_that_prev_agent_has_matching_color = color_probabilities[current_observation.top_card.color]
         should_challenge = prob_that_prev_agent_has_matching_color > 0.95
-        if should_challenge:
-            print("challenging draw four")
         return should_challenge
 
     @staticmethod
